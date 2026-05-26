@@ -52,6 +52,21 @@ jobs:
           if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is missing"; fi
           if [ -n "${{ secrets.SERVER_SSH_KEY }}" ]; then echo "SERVER_SSH_KEY is set"; else echo "SERVER_SSH_KEY is missing"; fi
           if [ -n "${{ secrets.SERVER_PORT }}" ]; then echo "SERVER_PORT is set"; else echo "SERVER_PORT is missing"; fi
+          if echo "${{ secrets.SERVER_SSH_KEY }}" | grep -q "BEGIN .* PRIVATE KEY"; then echo "SERVER_SSH_KEY format looks valid"; else echo "SERVER_SSH_KEY format looks invalid"; fi
+
+      - name: Check SSH port reachability
+        run: |
+          PORT="${{ secrets.SERVER_PORT }}"
+          if [ -z "$PORT" ]; then PORT=22; fi
+
+          echo "Testing TCP connectivity to ${{ secrets.SERVER_HOST }}:$PORT"
+          if timeout 10 bash -c "cat < /dev/null > /dev/tcp/${{ secrets.SERVER_HOST }}/$PORT"; then
+            echo "SSH port is reachable"
+          else
+            echo "SSH port is not reachable from GitHub runner"
+            echo "Verify firewall, cloud security group, and that sshd listens on this port"
+            exit 1
+          fi
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -59,7 +74,8 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             set -e
 
